@@ -1,8 +1,9 @@
-import { FaXTwitter } from 'react-icons/fa6';
+import { FaXTwitter, FaGithub } from 'react-icons/fa6';
 import { Link } from 'react-router-dom';
 
 const socialLinks = [
   { name: 'Twitter', url: 'https://x.com/SkewMarket', icon: FaXTwitter },
+  { name: 'GitHub', url: 'https://github.com/SkewMarket/skewmarket', icon: FaGithub },
 ];
 
 export default function Footer() {
