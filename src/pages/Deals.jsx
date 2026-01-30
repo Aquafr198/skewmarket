@@ -174,6 +174,7 @@ function calculateConfidenceScore(event) {
 // ============================================
 
 function MarketCard({ event, index, priceDirections }) {
+  const [expanded, setExpanded] = useState(false);
   const market = getActiveMarket(event) || {};
 
   let outcomes = ['Yes', 'No'];
@@ -197,97 +198,193 @@ function MarketCard({ event, index, priceDirections }) {
 
   const { mispricing, hotDeal, confidence, daysLeft } = event._scores;
   const polymarketUrl = event.slug ? `https://polymarket.com/event/${encodeSlug(event.slug)}` : '#';
+  const hasEdge = mispricing.edge > 0.5;
 
-  const getBadge = () => {
-    if ((mispricing.type === 'extreme' || mispricing.type === 'high') && mispricing.confidence >= 70) {
-      return { text: `${mispricing.edge.toFixed(1)}% Edge`, color: 'bg-emerald-50 text-emerald-600 border border-emerald-100' };
-    }
-    if (hotDeal.score >= 70 && hotDeal.dataQuality >= 70) {
-      return { text: 'Hot Deal', color: 'bg-orange-50 text-orange-600 border border-orange-100' };
-    }
-    if (daysLeft !== null && daysLeft < 3 && daysLeft > 0) {
-      return { text: `${Math.ceil(daysLeft)}d left`, color: 'bg-skew-accent-light text-skew-accent border border-blue-100' };
-    }
-    return null;
+  // Determine which side the edge favors
+  const getEdgeSide = () => {
+    if (!hasEdge || prices.length < 2) return null;
+    const yesPrice = parseFloat(prices[0]);
+    const noPrice = parseFloat(prices[1]);
+    const total = yesPrice + noPrice;
+    if (total > 1.005) return { side: 'No', reason: 'Prices sum > 100% — No side is overpriced' };
+    if (total < 0.995) return { side: 'Yes', reason: 'Prices sum < 100% — Yes side is underpriced' };
+    if (yesPrice > noPrice) return { side: 'No', reason: `Yes is priced high (${(yesPrice * 100).toFixed(1)}¢) — edge on No` };
+    return { side: 'Yes', reason: `No is priced high (${(noPrice * 100).toFixed(1)}¢) — edge on Yes` };
   };
 
-  const badge = getBadge();
+  const edgeSide = getEdgeSide();
 
   return (
-    <div className="bg-white rounded-xl p-4 border border-skew-border hover:border-skew-text-tertiary transition-colors group">
-      {/* Header */}
-      <div className="flex items-start justify-between gap-3 mb-3">
-        <div className="flex items-center gap-3 min-w-0">
-          {event.image ? (
-            <img
-              src={event.image}
-              alt=""
-              className="w-10 h-10 rounded-lg object-cover bg-skew-bg-secondary flex-shrink-0"
-              onError={(e) => e.target.style.display = 'none'}
-            />
-          ) : (
-            <div className="w-10 h-10 rounded-lg bg-skew-bg-secondary flex items-center justify-center flex-shrink-0">
-              <HiViewGrid className="w-4 h-4 text-skew-text-tertiary" />
-            </div>
-          )}
-          <div className="flex flex-col gap-1 min-w-0">
-            <span className="text-xs text-skew-text-tertiary font-medium truncate">{event.category || 'Market'}</span>
-            {badge && (
-              <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium w-fit ${badge.color}`}>
-                {badge.text}
-              </span>
-            )}
+    <div
+      className="bg-white rounded-xl border border-skew-border hover:border-skew-text-tertiary transition-all group cursor-pointer"
+      onClick={() => setExpanded(!expanded)}
+    >
+      {/* Edge banner — hero element */}
+      {hasEdge ? (
+        <div className="px-4 py-2.5 bg-emerald-50 border-b border-emerald-100 rounded-t-xl flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <HiLightningBolt className="w-4 h-4 text-emerald-500" />
+            <span className="text-emerald-700 font-bold text-lg">{mispricing.edge.toFixed(1)}%</span>
+            <span className="text-emerald-600 text-xs font-medium">Edge</span>
           </div>
+          {edgeSide && (
+            <span className="text-emerald-600 text-xs font-semibold bg-emerald-100 px-2 py-0.5 rounded-full">
+              {edgeSide.side} side
+            </span>
+          )}
         </div>
-        <a
-          href={polymarketUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="p-1.5 rounded-lg hover:bg-skew-bg-secondary transition-colors opacity-0 group-hover:opacity-100 flex-shrink-0"
-        >
-          <HiExternalLink className="w-4 h-4 text-skew-text-tertiary" />
-        </a>
-      </div>
+      ) : hotDeal.score >= 70 && hotDeal.dataQuality >= 70 ? (
+        <div className="px-4 py-2 bg-orange-50 border-b border-orange-100 rounded-t-xl flex items-center gap-2">
+          <HiTrendingUp className="w-4 h-4 text-orange-500" />
+          <span className="text-orange-600 text-xs font-semibold">Hot Deal</span>
+        </div>
+      ) : null}
 
-      {/* Title */}
-      <h3 className="font-medium text-sm mb-4 line-clamp-2 leading-snug text-skew-text-primary">{event.title || market.question}</h3>
-
-      {/* Outcomes — side-by-side boxes */}
-      <div className="flex gap-2 mb-4">
-        {outcomes.slice(0, 2).map((outcome, i) => {
-          const pct = (parseFloat(prices[i]) * 100).toFixed(1);
-          const isYes = i === 0;
-          return (
-            <div
-              key={outcome}
-              className={`flex-1 rounded-lg px-3 py-2.5 text-center ${
-                isYes ? 'bg-emerald-50 border border-emerald-100' : 'bg-red-50 border border-red-100'
-              } ${getFlashClass(i)}`}
-            >
-              <div className={`text-lg font-bold ${isYes ? 'text-emerald-600' : 'text-red-500'}`}>
-                {pct}¢
+      <div className="p-4">
+        {/* Header */}
+        <div className="flex items-start justify-between gap-3 mb-3">
+          <div className="flex items-center gap-3 min-w-0">
+            {event.image ? (
+              <img
+                src={event.image}
+                alt=""
+                className="w-10 h-10 rounded-lg object-cover bg-skew-bg-secondary flex-shrink-0"
+                onError={(e) => e.target.style.display = 'none'}
+              />
+            ) : (
+              <div className="w-10 h-10 rounded-lg bg-skew-bg-secondary flex items-center justify-center flex-shrink-0">
+                <HiViewGrid className="w-4 h-4 text-skew-text-tertiary" />
               </div>
-              <div className="text-[11px] text-skew-text-secondary font-medium mt-0.5">{outcome}</div>
+            )}
+            <div className="flex flex-col gap-0.5 min-w-0">
+              <span className="text-xs text-skew-text-tertiary font-medium truncate">{event.category || 'Market'}</span>
+              {daysLeft !== null && daysLeft < 3 && daysLeft > 0 && (
+                <span className="text-[10px] text-skew-orange font-medium">{Math.ceil(daysLeft)}d left</span>
+              )}
             </div>
-          );
-        })}
-      </div>
+          </div>
+          <a
+            href={polymarketUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={(e) => e.stopPropagation()}
+            className="p-1.5 rounded-lg hover:bg-skew-bg-secondary transition-colors opacity-0 group-hover:opacity-100 flex-shrink-0"
+          >
+            <HiExternalLink className="w-4 h-4 text-skew-text-tertiary" />
+          </a>
+        </div>
 
-      {/* Stats row */}
-      <div className="flex items-center justify-between pt-3 border-t border-skew-border-light text-[11px] text-skew-text-tertiary">
-        <span>Vol ${event.volume ? (event.volume / 1000).toFixed(0) + 'K' : '0'}</span>
-        <span>Liq ${event.liquidity ? (event.liquidity / 1000).toFixed(0) + 'K' : '0'}</span>
-        {daysLeft !== null && (
-          <span className={daysLeft < 3 ? 'text-skew-orange font-medium' : ''}>
-            {daysLeft < 1 ? 'Ends today' : `${Math.ceil(daysLeft)}d left`}
+        {/* Title */}
+        <h3 className="font-medium text-sm mb-4 line-clamp-2 leading-snug text-skew-text-primary">{event.title || market.question}</h3>
+
+        {/* Outcomes — side-by-side boxes */}
+        <div className="flex gap-2 mb-4">
+          {outcomes.slice(0, 2).map((outcome, i) => {
+            const pct = (parseFloat(prices[i]) * 100).toFixed(1);
+            const isYes = i === 0;
+            const isEdgeSide = edgeSide && edgeSide.side === outcome;
+            return (
+              <div
+                key={outcome}
+                className={`flex-1 rounded-lg px-3 py-2.5 text-center relative ${
+                  isYes ? 'bg-emerald-50 border border-emerald-100' : 'bg-red-50 border border-red-100'
+                } ${isEdgeSide && hasEdge ? 'ring-2 ring-emerald-300' : ''} ${getFlashClass(i)}`}
+              >
+                {isEdgeSide && hasEdge && (
+                  <div className="absolute -top-1.5 left-1/2 -translate-x-1/2 bg-emerald-500 text-white text-[8px] font-bold px-1.5 py-0.5 rounded-full leading-none">
+                    EDGE
+                  </div>
+                )}
+                <div className={`text-lg font-bold ${isYes ? 'text-emerald-600' : 'text-red-500'}`}>
+                  {pct}¢
+                </div>
+                <div className="text-[11px] text-skew-text-secondary font-medium mt-0.5">{outcome}</div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Stats row */}
+        <div className="flex items-center justify-between pt-3 border-t border-skew-border-light text-[11px] text-skew-text-tertiary">
+          <span>Vol ${event.volume ? (event.volume / 1000).toFixed(0) + 'K' : '0'}</span>
+          <span>Liq ${event.liquidity ? (event.liquidity / 1000).toFixed(0) + 'K' : '0'}</span>
+          {daysLeft !== null && (
+            <span className={daysLeft < 3 ? 'text-skew-orange font-medium' : ''}>
+              {daysLeft < 1 ? 'Ends today' : `${Math.ceil(daysLeft)}d left`}
+            </span>
+          )}
+          <span className={`font-medium ${
+            confidence.level === 'high' ? 'text-emerald-500' :
+            confidence.level === 'medium' ? 'text-skew-orange' : 'text-skew-red'
+          }`}>
+            {confidence.confidence}% trust
           </span>
-        )}
-        <span className={`font-medium ${
-          confidence.level === 'high' ? 'text-emerald-500' :
-          confidence.level === 'medium' ? 'text-skew-orange' : 'text-skew-red'
-        }`}>
-          {confidence.confidence}%
-        </span>
+        </div>
+
+        {/* Expanded details panel */}
+        <AnimatePresence>
+          {expanded && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: 0.2 }}
+              className="overflow-hidden"
+            >
+              <div className="mt-3 pt-3 border-t border-skew-border-light space-y-2">
+                {/* Edge details */}
+                {hasEdge && (
+                  <div className="bg-emerald-50 rounded-lg p-3 space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-semibold text-emerald-700">Edge Analysis</span>
+                      <span className="text-xs font-bold text-emerald-600">{mispricing.edge.toFixed(2)}%</span>
+                    </div>
+                    {edgeSide && (
+                      <p className="text-[11px] text-emerald-600 leading-relaxed">{edgeSide.reason}</p>
+                    )}
+                    <div className="flex gap-3 text-[10px] text-emerald-500">
+                      <span>Mode: {mispricing.mode === 'multi' ? 'Multi-outcome' : 'Binary'}</span>
+                      <span>Signal: {mispricing.type}</span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Confidence breakdown */}
+                <div className="bg-skew-bg-secondary rounded-lg p-3 space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-skew-text-primary">Trust Score</span>
+                    <span className={`text-xs font-bold ${
+                      confidence.level === 'high' ? 'text-emerald-600' :
+                      confidence.level === 'medium' ? 'text-skew-orange' : 'text-skew-red'
+                    }`}>{confidence.confidence}%</span>
+                  </div>
+                  <p className="text-[11px] text-skew-text-secondary leading-relaxed">
+                    Based on volume, liquidity, time remaining and price coherence.
+                  </p>
+                  {confidence.warnings.length > 0 && (
+                    <div className="flex flex-wrap gap-1">
+                      {confidence.warnings.map((w) => (
+                        <span key={w} className="text-[9px] bg-skew-orange/10 text-skew-orange px-1.5 py-0.5 rounded-full font-medium">{w}</span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Trade on Polymarket link */}
+                <a
+                  href={polymarketUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(e) => e.stopPropagation()}
+                  className="flex items-center justify-center gap-2 w-full py-2 bg-skew-accent text-white rounded-lg text-xs font-medium hover:bg-skew-accent-hover transition-colors"
+                >
+                  Trade on Polymarket
+                  <HiExternalLink className="w-3.5 h-3.5" />
+                </a>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </div>
   );
