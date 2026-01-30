@@ -1,0 +1,27 @@
+{
+  "name": "nixtio-app",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.1.18",
+    "@vitejs/plugin-react": "^5.1.2",
+    "typescript": "~5.9.3",
+    "vite": "^7.2.4"
+  },
+  "dependencies": {
+    "framer-motion": "^12.24.0",
+    "lottie-react": "^2.4.1",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-icons": "^5.5.0",
+    "react-intersection-observer": "^10.0.0",
+    "react-router-dom": "^7.12.0",
+    "react-spinners": "^0.17.0"
+  }
+}

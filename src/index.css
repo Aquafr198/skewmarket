@@ -1,0 +1,113 @@
+@import "tailwindcss";
+
+@theme {
+  --color-skew-bg: #FFFFFF;
+  --color-skew-bg-secondary: #F7F7F8;
+  --color-skew-bg-tertiary: #F0F0F2;
+  --color-skew-text-primary: #14151A;
+  --color-skew-text-secondary: #6B6F76;
+  --color-skew-text-tertiary: #9CA0A9;
+  --color-skew-border: #E8E8EA;
+  --color-skew-border-light: #F0F0F2;
+  --color-skew-accent: #0066FF;
+  --color-skew-accent-hover: #0052CC;
+  --color-skew-accent-light: #EBF2FF;
+  --color-skew-green: #22C55E;
+  --color-skew-red: #EF4444;
+  --color-skew-orange: #F59E0B;
+
+  --font-sans: 'Cabin', system-ui, -apple-system, sans-serif;
+  --font-family-cabin: 'Cabin', system-ui, -apple-system, sans-serif;
+}
+
+html {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body, html, * {
+  font-family: 'Cabin', system-ui, -apple-system, sans-serif !important;
+}
+
+body {
+  background-color: var(--color-skew-bg);
+  color: var(--color-skew-text-primary);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+/* Buttons */
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.625rem 1.25rem;
+  background-color: var(--color-skew-accent);
+  color: white;
+  border-radius: 9999px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition: background-color 0.15s ease;
+}
+.btn-primary:hover {
+  background-color: var(--color-skew-accent-hover);
+}
+
+.btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.625rem 1.25rem;
+  background-color: var(--color-skew-bg-tertiary);
+  color: var(--color-skew-text-primary);
+  border-radius: 9999px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition: background-color 0.15s ease;
+}
+.btn-secondary:hover {
+  background-color: var(--color-skew-border);
+}
+
+.btn-outline {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.625rem 1.25rem;
+  background-color: transparent;
+  border: 1px solid var(--color-skew-border);
+  color: var(--color-skew-text-primary);
+  border-radius: 9999px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition: all 0.15s ease;
+}
+.btn-outline:hover {
+  background-color: var(--color-skew-bg-secondary);
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background-color: transparent; }
+::-webkit-scrollbar-thumb { background-color: var(--color-skew-border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background-color: var(--color-skew-text-tertiary); }
+
+::selection {
+  background-color: var(--color-skew-accent);
+  color: white;
+}
+
+/* WebSocket price flash animations */
+@keyframes flash-green {
+  0% { background-color: rgba(34, 197, 94, 0.2); border-radius: 4px; }
+  100% { background-color: transparent; }
+}
+@keyframes flash-red {
+  0% { background-color: rgba(239, 68, 68, 0.2); border-radius: 4px; }
+  100% { background-color: transparent; }
+}
+.animate-flash-green { animation: flash-green 1.5s ease-out; }
+.animate-flash-red { animation: flash-red 1.5s ease-out; }
