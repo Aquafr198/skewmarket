@@ -65,8 +65,14 @@ function calculateMispricingScore(event) {
     }
     if (yesPrices.length >= 2) {
       const total = yesPrices.reduce((a, b) => a + b, 0);
-      edge = Math.abs(1 - total) * 100;
-      mode = 'multi';
+      // For multi-outcome markets the expected total is 1.0 (all outcomes should sum to 100%)
+      // But only if the total is reasonably close — huge deviations mean independent markets, not mispricing
+      const deviation = Math.abs(1 - total) * 100;
+      if (deviation <= 15) {
+        edge = deviation;
+        mode = 'multi';
+      }
+      // If total is way off (e.g. 5.0 for 10 outcomes), these are independent markets — skip multi mode
     }
   }
 
