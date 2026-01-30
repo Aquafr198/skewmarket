@@ -183,18 +183,35 @@ function MarketCard({ event, index, priceDirections }) {
   const [expanded, setExpanded] = useState(false);
   const market = getActiveMarket(event) || {};
 
+  // Detect multi-outcome: multiple open markets each representing a choice
+  const activeMarkets = (event.markets || []).filter(m => {
+    if (m.closed === true || m.active === false) return false;
+    return safeParsePrices(m.outcomePrices) !== null;
+  });
+  const isMultiOutcome = activeMarkets.length >= 3;
+
+  // Build choices list for multi-outcome events (sorted by Yes price desc)
+  const choices = isMultiOutcome
+    ? activeMarkets
+        .map(m => {
+          const p = safeParsePrices(m.outcomePrices);
+          return {
+            label: m.groupItemTitle || m.question || 'Option',
+            yesPrice: p ? p[0] : 0,
+            market: m,
+          };
+        })
+        .sort((a, b) => b.yesPrice - a.yesPrice)
+    : [];
+
+  // Binary fallback
   let outcomes = ['Yes', 'No'];
   let prices = [0.5, 0.5];
-
-  try {
-    if (market.outcomes) outcomes = JSON.parse(market.outcomes);
-  } catch {}
-
+  try { if (market.outcomes) outcomes = JSON.parse(market.outcomes); } catch {}
   const parsedPrices = safeParsePrices(market.outcomePrices);
   if (parsedPrices) prices = parsedPrices;
 
-  const getFlashClass = (outcomeIndex) => {
-    const tokenIds = market?.clobTokenIds;
+  const getFlashClass = (tokenIds, outcomeIndex) => {
     if (!Array.isArray(tokenIds) || !tokenIds[outcomeIndex] || !priceDirections) return '';
     const dir = priceDirections.get(tokenIds[outcomeIndex]);
     if (dir === 'up') return 'animate-flash-green';
@@ -208,17 +225,38 @@ function MarketCard({ event, index, priceDirections }) {
 
   // Determine which side the edge favors
   const getEdgeSide = () => {
-    if (!hasEdge || prices.length < 2) return null;
+    if (!hasEdge) return null;
+
+    if (isMultiOutcome && mispricing.mode === 'multi') {
+      const total = choices.reduce((s, c) => s + c.yesPrice, 0);
+      if (total > 1.005) {
+        const top = choices[0];
+        return { side: top.label, reason: `Prices sum to ${(total * 100).toFixed(1)}% (> 100%) \u2014 "${top.label}" may be overpriced at ${(top.yesPrice * 100).toFixed(1)}\u00A2` };
+      }
+      if (total < 0.995) {
+        const best = choices[choices.length - 1];
+        return { side: best.label, reason: `Prices sum to ${(total * 100).toFixed(1)}% (< 100%) \u2014 "${best.label}" may be underpriced at ${(best.yesPrice * 100).toFixed(1)}\u00A2` };
+      }
+      return { side: choices[0].label, reason: `Slight mispricing detected across ${choices.length} outcomes` };
+    }
+
+    // Binary
+    if (prices.length < 2) return null;
     const yesPrice = parseFloat(prices[0]);
     const noPrice = parseFloat(prices[1]);
     const total = yesPrice + noPrice;
-    if (total > 1.005) return { side: 'No', reason: 'Prices sum > 100% — No side is overpriced' };
-    if (total < 0.995) return { side: 'Yes', reason: 'Prices sum < 100% — Yes side is underpriced' };
-    if (yesPrice > noPrice) return { side: 'No', reason: `Yes is priced high (${(yesPrice * 100).toFixed(1)}¢) — edge on No` };
-    return { side: 'Yes', reason: `No is priced high (${(noPrice * 100).toFixed(1)}¢) — edge on Yes` };
+    if (total > 1.005) return { side: 'No', reason: 'Prices sum > 100% \u2014 No side is overpriced' };
+    if (total < 0.995) return { side: 'Yes', reason: 'Prices sum < 100% \u2014 Yes side is underpriced' };
+    if (yesPrice > noPrice) return { side: 'No', reason: `Yes is priced high (${(yesPrice * 100).toFixed(1)}\u00A2) \u2014 edge on No` };
+    return { side: 'Yes', reason: `No is priced high (${(noPrice * 100).toFixed(1)}\u00A2) \u2014 edge on Yes` };
   };
 
   const edgeSide = getEdgeSide();
+
+  // How many choices to show collapsed vs expanded
+  const COLLAPSED_CHOICES = 4;
+  const visibleChoices = expanded ? choices : choices.slice(0, COLLAPSED_CHOICES);
+  const hiddenCount = choices.length - COLLAPSED_CHOICES;
 
   return (
     <div
@@ -234,8 +272,8 @@ function MarketCard({ event, index, priceDirections }) {
             <span className="text-emerald-600 text-xs font-medium">Edge</span>
           </div>
           {edgeSide && (
-            <span className="text-emerald-600 text-xs font-semibold bg-emerald-100 px-2 py-0.5 rounded-full">
-              {edgeSide.side} side
+            <span className="text-emerald-600 text-xs font-semibold bg-emerald-100 px-2 py-0.5 rounded-full truncate max-w-[140px]">
+              {edgeSide.side}
             </span>
           )}
         </div>
@@ -269,46 +307,108 @@ function MarketCard({ event, index, priceDirections }) {
               )}
             </div>
           </div>
-          <a
-            href={polymarketUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={(e) => e.stopPropagation()}
-            className="p-1.5 rounded-lg hover:bg-skew-bg-secondary transition-colors opacity-0 group-hover:opacity-100 flex-shrink-0"
-          >
-            <HiExternalLink className="w-4 h-4 text-skew-text-tertiary" />
-          </a>
+          <div className="flex items-center gap-1 flex-shrink-0">
+            {isMultiOutcome && (
+              <span className="text-[10px] text-skew-accent font-semibold bg-skew-accent-light px-2 py-0.5 rounded-full">
+                {activeMarkets.length} choices
+              </span>
+            )}
+            <a
+              href={polymarketUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              className="p-1.5 rounded-lg hover:bg-skew-bg-secondary transition-colors opacity-0 group-hover:opacity-100"
+            >
+              <HiExternalLink className="w-4 h-4 text-skew-text-tertiary" />
+            </a>
+          </div>
         </div>
 
         {/* Title */}
         <h3 className="font-medium text-sm mb-4 line-clamp-2 leading-snug text-skew-text-primary">{event.title || market.question}</h3>
 
-        {/* Outcomes — side-by-side boxes */}
-        <div className="flex gap-2 mb-4">
-          {outcomes.slice(0, 2).map((outcome, i) => {
-            const pct = (parseFloat(prices[i]) * 100).toFixed(1);
-            const isYes = i === 0;
-            const isEdgeSide = edgeSide && edgeSide.side === outcome;
-            return (
-              <div
-                key={outcome}
-                className={`flex-1 rounded-lg px-3 py-2.5 text-center relative ${
-                  isYes ? 'bg-emerald-50 border border-emerald-100' : 'bg-red-50 border border-red-100'
-                } ${isEdgeSide && hasEdge ? 'ring-2 ring-emerald-300' : ''} ${getFlashClass(i)}`}
-              >
-                {isEdgeSide && hasEdge && (
-                  <div className="absolute -top-1.5 left-1/2 -translate-x-1/2 bg-emerald-500 text-white text-[8px] font-bold px-1.5 py-0.5 rounded-full leading-none">
-                    EDGE
+        {/* === MULTI-OUTCOME: show all choices === */}
+        {isMultiOutcome ? (
+          <div className="mb-4 space-y-1.5">
+            {visibleChoices.map((choice, i) => {
+              const pct = (choice.yesPrice * 100).toFixed(1);
+              const isTop = i === 0;
+              const isEdgeTarget = edgeSide && edgeSide.side === choice.label;
+              const flash = getFlashClass(choice.market?.clobTokenIds, 0);
+              return (
+                <div
+                  key={choice.label}
+                  className={`flex items-center justify-between rounded-lg px-3 py-2 relative ${
+                    isEdgeTarget && hasEdge
+                      ? 'bg-emerald-50 border border-emerald-200 ring-1 ring-emerald-300'
+                      : isTop
+                        ? 'bg-skew-bg-secondary border border-skew-border'
+                        : 'bg-skew-bg-tertiary/50 border border-transparent'
+                  } ${flash}`}
+                >
+                  <div className="flex items-center gap-2 min-w-0 flex-1">
+                    {isEdgeTarget && hasEdge && (
+                      <span className="bg-emerald-500 text-white text-[7px] font-bold px-1.5 py-0.5 rounded-full leading-none flex-shrink-0">
+                        EDGE
+                      </span>
+                    )}
+                    <span className={`text-xs font-medium truncate ${isEdgeTarget && hasEdge ? 'text-emerald-700' : 'text-skew-text-primary'}`}>
+                      {choice.label}
+                    </span>
                   </div>
-                )}
-                <div className={`text-lg font-bold ${isYes ? 'text-emerald-600' : 'text-red-500'}`}>
-                  {pct}¢
+                  <div className="flex items-center gap-2 flex-shrink-0 ml-2">
+                    <div className="w-16 h-1.5 rounded-full bg-skew-border overflow-hidden">
+                      <div
+                        className={`h-full rounded-full ${isEdgeTarget && hasEdge ? 'bg-emerald-400' : isTop ? 'bg-skew-accent' : 'bg-skew-text-tertiary'}`}
+                        style={{ width: `${Math.min(choice.yesPrice * 100, 100)}%` }}
+                      />
+                    </div>
+                    <span className={`text-sm font-bold tabular-nums w-12 text-right ${
+                      isEdgeTarget && hasEdge ? 'text-emerald-600' : isTop ? 'text-skew-accent' : 'text-skew-text-primary'
+                    }`}>
+                      {pct}¢
+                    </span>
+                  </div>
                 </div>
-                <div className="text-[11px] text-skew-text-secondary font-medium mt-0.5">{outcome}</div>
+              );
+            })}
+            {!expanded && hiddenCount > 0 && (
+              <div className="text-center pt-1">
+                <span className="text-[11px] text-skew-accent font-medium">
+                  +{hiddenCount} more outcome{hiddenCount > 1 ? 's' : ''} — click to expand
+                </span>
               </div>
-            );
-          })}
-        </div>
+            )}
+          </div>
+        ) : (
+          /* === BINARY: side-by-side Yes/No boxes === */
+          <div className="flex gap-2 mb-4">
+            {outcomes.slice(0, 2).map((outcome, i) => {
+              const pct = (parseFloat(prices[i]) * 100).toFixed(1);
+              const isYes = i === 0;
+              const isEdgeSide = edgeSide && edgeSide.side === outcome;
+              return (
+                <div
+                  key={outcome}
+                  className={`flex-1 rounded-lg px-3 py-2.5 text-center relative ${
+                    isYes ? 'bg-emerald-50 border border-emerald-100' : 'bg-red-50 border border-red-100'
+                  } ${isEdgeSide && hasEdge ? 'ring-2 ring-emerald-300' : ''} ${getFlashClass(market?.clobTokenIds, i)}`}
+                >
+                  {isEdgeSide && hasEdge && (
+                    <div className="absolute -top-1.5 left-1/2 -translate-x-1/2 bg-emerald-500 text-white text-[8px] font-bold px-1.5 py-0.5 rounded-full leading-none">
+                      EDGE
+                    </div>
+                  )}
+                  <div className={`text-lg font-bold ${isYes ? 'text-emerald-600' : 'text-red-500'}`}>
+                    {pct}¢
+                  </div>
+                  <div className="text-[11px] text-skew-text-secondary font-medium mt-0.5">{outcome}</div>
+                </div>
+              );
+            })}
+          </div>
+        )}
 
         {/* Stats row */}
         <div className="flex items-center justify-between pt-3 border-t border-skew-border-light text-[11px] text-skew-text-tertiary">
@@ -349,7 +449,7 @@ function MarketCard({ event, index, priceDirections }) {
                       <p className="text-[11px] text-emerald-600 leading-relaxed">{edgeSide.reason}</p>
                     )}
                     <div className="flex gap-3 text-[10px] text-emerald-500">
-                      <span>Mode: {mispricing.mode === 'multi' ? 'Multi-outcome' : 'Binary'}</span>
+                      <span>Mode: {mispricing.mode === 'multi' ? `Multi-outcome (${activeMarkets.length} choices)` : 'Binary'}</span>
                       <span>Signal: {mispricing.type}</span>
                     </div>
                   </div>
